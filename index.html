@@ -1,0 +1,198 @@
+<html>
+    <head>
+        <meta name="viewport" content="initial-scale=0.75, maximum-scale=1">
+        <link href="https://beauburrier.com/static/css/index.css" rel="stylesheet">
+
+        <style>
+            canvas {
+                border: 1px solid #CCC;
+                border-radius: 4px;
+            }
+        </style>
+        
+        <script>
+            function status(msg) {
+                document.getElementById("status").innerText = msg;
+            }
+
+            function toast(msg) {
+                status(msg);
+                if(msg) {
+                    setTimeout(e => status(''), 1500);
+                }
+            }
+
+            function debounced(f, delay) {
+                let arg;
+                function invoke(f, arg) {
+                    return f(arg);
+                }
+
+                let timeoutId = setTimeout(invoke(f, arg), delay);
+                return function(arg) {
+                    clearTimeout(timeoutId);
+                    timeoutId = setTimeout(invoke(f, arg), delay);
+                }
+            }
+
+            function Heatmap() {
+                let clientW = document.body.clientWidth;
+                let clientH = document.body.clientHeight;
+
+                // Initialize 2d array (map) of 
+                // size clientWidth x clientHeight
+                let data = new Array(clientW);
+                for(let i = 0; i < data.length; i++) {
+                    data[i] = new Array(clientH);
+                }
+
+                canvas = document.getElementById("heatmap");
+                let ctx = canvas.getContext('2d');
+
+                let maxHover = 0;
+                let hoverCap = 100;
+                function add(x, y, event) {
+                    // Make sure row exists
+                    data[x] = data[x] ? data[x] : new Array(clientW);
+
+                    // Upsert point data
+                    let current = data[x][y];
+                    if(current) {
+                        let currValue = data[x][y][event];
+                        data[x][y][event] = Math.min(currValue + 1, hoverCap);
+                        maxHover = Math.max(maxHover, data[x][y]["hover"]);
+                    }
+                    else {
+                        data[x][y] = {
+                            x: x, 
+                            y: y, 
+                            hover: 0, 
+                            click: 0
+                        };
+                        data[x][y][event]++;
+                    }
+                }
+
+                function addClick(e) {
+                    if(e) {
+                        add(e.clientX, e.clientY, "click");
+                    }
+                }
+
+                let currX;
+                let currY;
+                function setPos(e) {
+                    if(e) {
+                        currX = e.clientX;
+                        currY = e.clientY;
+                    }
+                }
+
+                function addHover() {
+                    add(currX, currY, "hover");
+                }
+
+                function getFillColor(d) {
+                    let colors = ["#23171b","#4860e6","#2aabee","#2ee5ae","#6afd6a","#c0ee3d","#feb927","#fe6e1a","#c2270a","#900c00"];
+
+                    let inputRange = [0, hoverCap];
+                    let outputDomain = [0, colors.length];
+
+                    let inputPercentile = d.hover / inputRange[1];
+
+                    let hoverScaled = Math.min(1, outputDomain[1] * inputPercentile);
+                    let index = Math.floor(colors.length * hoverScaled);
+
+                    return colors[index];             
+                }
+
+                function drawClicks() {
+                    w = canvas.width;
+                    h = canvas.height;
+
+                    for(let x=0; x < w; x++) {
+                        for(let y=0; y < h; y++) {
+
+                            try {
+                                let d = data[x][y];
+                                
+                                if(d) {
+                                    if(d.click > 0) {
+                                        ctx.beginPath();
+                                        ctx.globalAlpha = 1;
+                                        ctx.fillStyle = "#FF0000";
+                                        ctx.arc(d.x, d.y, 5, 0, Math.PI * 2, false);
+                                        ctx.fill();
+                                    }
+                                }
+                            }
+                            catch {
+                            }
+                        }
+                    }
+                }
+
+                function draw() {
+                    w = canvas.width;
+                    h = canvas.height;
+
+                    ctx.clearRect(0, 0, w, h);
+                   
+                    for(let x=0; x < w; x++) {
+
+                        // Sort data ascending by hover value
+                        let colData = data[x];
+                        colData = colData.sort((a,b) => a.hover - b.hover);
+
+                        for(let y=0; y < h; y++) {
+                            try {
+                                let d = colData[y];
+                                
+                                if(d) {
+                                    if(d.hover > 0) {
+                                        ctx.beginPath()
+                                        ctx.globalAlpha = 0.1;
+                                        ctx.fillStyle = getFillColor(d);
+                                        ctx.arc(d.x, d.y, w/10, 0, Math.PI * 2, false);
+                                        ctx.fill()
+                                    }
+                                }
+                            }
+                            catch {
+                            }
+                        }
+                    }
+                    drawClicks();
+                }
+
+                return {
+                    addHover,
+                    setPos,
+                    addClick,
+                    draw,
+                    data,
+                };
+            }
+
+            let heatmap;
+            function init() {
+                heatmap = Heatmap();
+                document.addEventListener('mousemove', heatmap.setPos);
+                document.addEventListener('click', debounced(heatmap.addClick, 50));
+
+                setInterval(heatmap.addHover, 5);
+                setInterval(heatmap.draw, 50);
+            }
+
+            document.addEventListener('DOMContentLoaded', init);
+        </script>
+    </head>
+    
+    <body>
+        <div id="status"></div>
+        <main>
+            <canvas class="heatmap" id="heatmap" width="200" height="200"></canvas>
+        </main>
+    </body>
+
+</html>
