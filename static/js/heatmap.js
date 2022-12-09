@@ -1,20 +1,19 @@
 function Heatmap(canvasId, config) {
 
-    let clientW = document.body.clientWidth;
-    let clientH = document.body.clientHeight;
-    let w, h;
-    
     let canvas = document.getElementById(canvasId);
     let ctx = canvas.getContext('2d');
-    let hoverCap = clientW< 650 ? 100 : (clientW / 7.75);
+    let isFullPage = false;
+
+    let hoverCap = document.body.clientWidth < 650 
+        ? 100 
+        : (document.body.clientWidth / 7.75);
 
     let desktopSize = config.desktopSize;
     let mobileSize = config.mobileSize;
     let hoverMarkerSize, clickMarkerSize;
-    let alpha = config.alpha ? config.alpha : 0.05;
+    let alpha = config.alpha ? config.alpha : getAlpha();
 
     let currX, currY;
-    let isFullPage = false;
     let data;
 
     function init() {
@@ -27,6 +26,7 @@ function Heatmap(canvasId, config) {
         // Register event listeners
         document.addEventListener('mousemove', setPos);
         document.addEventListener('mousedown', debounced(addClick, 50));
+        document.addEventListener('mouseup', debounced(addClick, 50));
         document.addEventListener('touchstart', setPos);
         document.addEventListener('touchmove', setPos);
 
@@ -36,16 +36,27 @@ function Heatmap(canvasId, config) {
 
     function resetData() {
         // Initialize 2d array (map) of 
-        // size clientWidth x clientHeight
-        data = new Array(clientW);
+        // size scrollWidth x scrollHeight
+        data = new Array(document.body.scrollWidth);
         for(let i = 0; i < data.length; i++) {
-            data[i] = new Array(clientH);
+            data[i] = new Array(document.body.scrollHeight);
         }
     }
 
     function onResize() {
         resetData();
         sizeToScreen();
+    }
+
+    function getAlpha() {
+        if(isFullPage) {
+            return document.body.clientWidth < 650
+                ? 0.01
+                : 0.01;
+        }
+        return document.body.clientWidth < 650
+            ? 0.03
+            : 0.02;
     }
 
     function sizeToScreen() {
@@ -55,24 +66,23 @@ function Heatmap(canvasId, config) {
         if(document.body.clientWidth < 650) {
             canvas.width = mobileSize;
             canvas.height = mobileSize;
+            clickMarkerSize = canvas.width / 50;
+            hoverMarkerSize = canvas.width / 15;
         }
         else {
             canvas.width = desktopSize;
             canvas.height = desktopSize;
+            clickMarkerSize = canvas.width / 50;
+            hoverMarkerSize = canvas.width / 18;
         }
-        w = canvas.width;
-        h = canvas.height;
-
-        clickMarkerSize = w / 50;
-        hoverMarkerSize = w / 10;
     }
 
-    function toggleFullPage() {
+    function toggleFullPage(w, h) {
         if(isFullPage) {
             isFullPage = false;
             sizeToScreen(canvas);
             canvas.classList.remove("fullpage")
-            alpha = 0.01;
+            alpha = getAlpha();
         }
 
         else {
@@ -80,11 +90,15 @@ function Heatmap(canvasId, config) {
 
             canvas.width = document.body.scrollWidth;
             canvas.height = document.body.scrollHeight;
-            w = canvas.width;
-            h = canvas.height;
 
-            clickMarkerSize = 5;
-            hoverMarkerSize = w / 15;
+            if(document.body.clientWidth < 650) {
+                clickMarkerSize = 5;
+                hoverMarkerSize = canvas.width / 20;
+            }
+            else {
+                clickMarkerSize = 5;
+                hoverMarkerSize = canvas.width / 35;
+            }
 
             canvas.classList.add("fullpage")
         }
@@ -92,7 +106,7 @@ function Heatmap(canvasId, config) {
 
     function add(x, y, event) {
         // Make sure row exists
-        data[x] = data[x] ? data[x] : new Array(clientW);
+        data[x] = data[x] ? data[x] : new Array(document.body.clientWidth);
 
         // Upsert point data
         let current = data[x][y];
@@ -113,8 +127,7 @@ function Heatmap(canvasId, config) {
 
     function addClick(e) {
         if(e) {
-            add(e.clientX, e.clientY, "click");
-            canvasPosition(e.clientX, e.clientY);
+            add(e.pageX, e.pageY, "click");
         }
     }
 
@@ -122,12 +135,12 @@ function Heatmap(canvasId, config) {
         if(e) {
             if(e.touches) {
                 let touch = e.touches[0];
-                currX = Math.floor(touch.clientX);
-                currY = Math.floor(touch.clientY);
+                currX = Math.floor(touch.pageX);
+                currY = Math.floor(touch.pageY);
             }
             else if(e.clientX && e.clientY) {
-                currX = e.clientX;
-                currY = e.clientY;
+                currX = e.pageX;
+                currY = e.pageY;
             }
         }
     }
@@ -146,8 +159,8 @@ function Heatmap(canvasId, config) {
     }
 
     function canvasPosition(x, y) {
-        let xScaled = Math.floor(x * (w / document.body.clientWidth));
-        let yScaled = Math.floor(y * (h / document.body.clientHeight));
+        let xScaled = Math.floor(x * (canvas.width / document.body.scrollWidth));
+        let yScaled = Math.floor(y * (canvas.height / document.body.scrollHeight));
 
         return [xScaled, yScaled];
     }
@@ -177,7 +190,7 @@ function Heatmap(canvasId, config) {
     }
 
     function drawHover() {
-        ctx.clearRect(0, 0, w, h);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
        
         for(let x=0; x < data.length; x++) {
             // Sort data ascending by hover value
@@ -194,7 +207,7 @@ function Heatmap(canvasId, config) {
                             let [cX, cY] = canvasPosition(d.x, d.y);
 
                             ctx.beginPath()
-                            ctx.globalAlpha = alpha;
+                            ctx.globalAlpha = getAlpha();
                             ctx.fillStyle = getFillColor(d);
                             ctx.arc(cX, cY, hoverMarkerSize, 0, Math.PI * 2, false);
                             ctx.fill()
