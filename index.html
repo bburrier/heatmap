@@ -49,7 +49,6 @@
                 canvas = document.getElementById("heatmap");
                 let ctx = canvas.getContext('2d');
 
-                let maxHover = 0;
                 let hoverCap = 100;
                 function add(x, y, event) {
                     // Make sure row exists
@@ -60,7 +59,6 @@
                     if(current) {
                         let currValue = data[x][y][event];
                         data[x][y][event] = Math.min(currValue + 1, hoverCap);
-                        maxHover = Math.max(maxHover, data[x][y]["hover"]);
                     }
                     else {
                         data[x][y] = {
@@ -83,8 +81,16 @@
                 let currY;
                 function setPos(e) {
                     if(e) {
-                        currX = e.clientX;
-                        currY = e.clientY;
+                        if(e.touches) {
+                            let touch = e.touches[0];
+                            currX = Math.floor(touch.clientX);
+                            currY = Math.floor(touch.clientY);
+                            status(`${currX}, ${currY}`);
+                        }
+                        else {
+                            currX = e.clientX;
+                            currY = e.clientY;
+                        }
                     }
                 }
 
@@ -100,10 +106,12 @@
 
                     let inputPercentile = d.hover / inputRange[1];
 
+                    //status(inputPercentile);
+
                     let hoverScaled = Math.min(1, outputDomain[1] * inputPercentile);
                     let index = Math.floor(colors.length * hoverScaled);
 
-                    return colors[index];             
+                    return colors[index];    
                 }
 
                 function drawClicks() {
@@ -112,27 +120,22 @@
 
                     for(let x=0; x < w; x++) {
                         for(let y=0; y < h; y++) {
-
-                            try {
-                                let d = data[x][y];
-                                
-                                if(d) {
-                                    if(d.click > 0) {
-                                        ctx.beginPath();
-                                        ctx.globalAlpha = 1;
-                                        ctx.fillStyle = "#FF0000";
-                                        ctx.arc(d.x, d.y, 5, 0, Math.PI * 2, false);
-                                        ctx.fill();
-                                    }
+                            let d = data[x][y];
+                            
+                            if(d) {
+                                if(d.click > 0) {
+                                    ctx.beginPath();
+                                    ctx.globalAlpha = 1;
+                                    ctx.fillStyle = "#FF0000";
+                                    ctx.arc(d.x, d.y, 5, 0, Math.PI * 2, false);
+                                    ctx.fill();
                                 }
-                            }
-                            catch {
                             }
                         }
                     }
                 }
 
-                function draw() {
+                function drawHover() {
                     w = canvas.width;
                     h = canvas.height;
 
@@ -145,23 +148,24 @@
                         colData = colData.sort((a,b) => a.hover - b.hover);
 
                         for(let y=0; y < h; y++) {
-                            try {
-                                let d = colData[y];
-                                
-                                if(d) {
-                                    if(d.hover > 0) {
-                                        ctx.beginPath()
-                                        ctx.globalAlpha = 0.1;
-                                        ctx.fillStyle = getFillColor(d);
-                                        ctx.arc(d.x, d.y, w/10, 0, Math.PI * 2, false);
-                                        ctx.fill()
-                                    }
+                            let d = colData[y];
+                            
+                            if(d) {
+                                if(d.hover > 0) {
+                                    ctx.beginPath()
+                                    ctx.globalAlpha = 0.1;
+                                    ctx.fillStyle = getFillColor(d);
+                                    ctx.arc(d.x, d.y, w/10, 0, Math.PI * 2, false);
+                                    ctx.fill()
                                 }
                             }
-                            catch {
-                            }
+                            
                         }
                     }
+                }
+
+                function draw() {
+                    drawHover();
                     drawClicks();
                 }
 
@@ -177,11 +181,15 @@
             let heatmap;
             function init() {
                 heatmap = Heatmap();
+
                 document.addEventListener('mousemove', heatmap.setPos);
                 document.addEventListener('click', debounced(heatmap.addClick, 50));
 
+                document.addEventListener('touchstart', heatmap.setPos);
+                document.addEventListener('touchmove', heatmap.setPos);
+
                 setInterval(heatmap.addHover, 5);
-                setInterval(heatmap.draw, 50);
+                setInterval(heatmap.draw, 100);
             }
 
             document.addEventListener('DOMContentLoaded', init);
