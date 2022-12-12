@@ -205,7 +205,7 @@ function Heatmap(canvasId, config) {
                     if(d) {
                         if(d.hover > 0) {
                             let [cX, cY] = canvasPosition(d.x, d.y);
-
+                            
                             ctx.beginPath()
                             ctx.globalAlpha = getAlpha();
                             ctx.fillStyle = getFillColor(d);
