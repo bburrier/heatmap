@@ -3,11 +3,10 @@ function Heatmap(canvasId, config) {
     let canvas = document.getElementById(canvasId);
     let ctx = canvas.getContext('2d');
     let isFullPage = false;
-
-    let hoverCap = document.body.clientWidth < 650 
-        ? 100 
-        : (document.body.clientWidth / 7.75);
-
+    let colors = ["#355f8d","#4a58dd","#2f9df5","#27d7c4","#4df884","#95fb51","#dedd32","#ffa423","#f65f18","#ba2208","#900c00"];
+    let mobileBreakpoint = 650;
+    let maxHoverMarkerSize = 30;
+    
     let desktopSize = config.desktopSize;
     let mobileSize = config.mobileSize;
     let hoverMarkerSize, clickMarkerSize;
@@ -48,22 +47,23 @@ function Heatmap(canvasId, config) {
         sizeToScreen();
     }
 
+    function getHoverCap() {
+        // TODO: Defined as a function because this 
+        // may be a calculated value in the future
+        return 160;
+    }
+
     function getAlpha() {
-        if(isFullPage) {
-            return document.body.clientWidth < 650
-                ? 0.01
-                : 0.01;
-        }
-        return document.body.clientWidth < 650
-            ? 0.03
-            : 0.02;
+        // TODO: Defined as a function because this 
+        // may be a calculated value in the future
+        return 0.01;
     }
 
     function sizeToScreen() {
         isFullPage = false;
         canvas.classList.remove("fullpage")
 
-        if(document.body.clientWidth < 650) {
+        if(document.body.clientWidth < mobileBreakpoint) {
             canvas.width = mobileSize;
             canvas.height = mobileSize;
             clickMarkerSize = canvas.width / 50;
@@ -73,7 +73,7 @@ function Heatmap(canvasId, config) {
             canvas.width = desktopSize;
             canvas.height = desktopSize;
             clickMarkerSize = canvas.width / 50;
-            hoverMarkerSize = canvas.width / 18;
+            hoverMarkerSize = Math.min(canvas.width / 18, maxHoverMarkerSize);
         }
     }
 
@@ -91,13 +91,13 @@ function Heatmap(canvasId, config) {
             canvas.width = document.body.scrollWidth;
             canvas.height = document.body.scrollHeight;
 
-            if(document.body.clientWidth < 650) {
+            if(document.body.clientWidth < mobileBreakpoint) {
                 clickMarkerSize = 5;
                 hoverMarkerSize = canvas.width / 20;
             }
             else {
                 clickMarkerSize = 5;
-                hoverMarkerSize = canvas.width / 35;
+                hoverMarkerSize = Math.min(canvas.width / 35, maxHoverMarkerSize);
             }
 
             canvas.classList.add("fullpage")
@@ -112,7 +112,7 @@ function Heatmap(canvasId, config) {
         let current = data[x][y];
         if(current) {
             let currValue = data[x][y][event];
-            data[x][y][event] = Math.min(currValue + 1, hoverCap);
+            data[x][y][event] = Math.min(currValue + 1, getHoverCap());
         }
         else {
             data[x][y] = {
@@ -148,11 +148,18 @@ function Heatmap(canvasId, config) {
     function addHover() {
         add(currX, currY, "hover");
     }
+    
+    function getValuePercentile(value) {
+        return value / getHoverCap();
+    }
+    
+    function getColorPercentile(valuePercentile) {
+        return Math.min(1, colors.length * valuePercentile);
+    }
 
-    let colors = ["#23171b","#4860e6","#2aabee","#2ee5ae","#6afd6a","#c0ee3d","#feb927","#fe6e1a","#c2270a","#900c00"];
     function getFillColor(d) {
-        let valuePercentile = d.hover / hoverCap;
-        let valueAsColorPercentile = Math.min(1, colors.length * valuePercentile);
+        let valuePercentile = getValuePercentile(d.hover);
+        let valueAsColorPercentile = getColorPercentile(valuePercentile);
         let colorIndex = Math.floor(colors.length * valueAsColorPercentile);
 
         return colors[colorIndex];
@@ -193,10 +200,10 @@ function Heatmap(canvasId, config) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
        
         for(let x=0; x < data.length; x++) {
-            // Sort data ascending by hover value
             let colData = data[x];
 
             if(colData) {
+                // Sort data ascending by hover weight
                 colData = colData.sort((a,b) => a.hover - b.hover);
 
                 for(let y=0; y < colData.length; y++) {
@@ -235,6 +242,11 @@ function Heatmap(canvasId, config) {
         sizeToScreen,
         toggleFullPage,
         isFullPage: _ => isFullPage,
+        getValuePercentile,
+        getColorPercentile,
+        getFillColor,
+        getHoverCap,
+        colors,
     };
 }
 
